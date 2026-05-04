@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Cpu, Terminal, ShieldAlert, Activity, Lock, LogOut, 
-  Gamepad2, Database, Orbit, Zap, ArrowUpCircle, BrainCircuit, Trophy, Menu, X
+  Gamepad2, Database, Orbit, Zap, ArrowUpCircle, BrainCircuit, Trophy, Menu, X, Maximize
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -20,7 +20,6 @@ const SystemClock = () => {
   return <span className="font-mono text-white/50 text-xs tracking-widest">{time}</span>;
 };
 
-// --- ОБНОВЛЕННЫЙ ГЕНЕРАТОР ФАКТОВ ---
 const AiOracle = () => {
   const [fact, setFact] = useState("AWAITING QUERY...");
   const [isTyping, setIsTyping] = useState(false);
@@ -41,7 +40,6 @@ const AiOracle = () => {
     if (isTyping) return;
     setIsTyping(true);
     
-    // Гарантируем, что следующий факт не совпадет с предыдущим
     let newIndex = Math.floor(Math.random() * facts.length);
     while (newIndex === lastFactIndex) {
       newIndex = Math.floor(Math.random() * facts.length);
@@ -65,8 +63,8 @@ const AiOracle = () => {
   return (
     <div className="flex flex-col items-center justify-center h-full space-y-8">
       <BrainCircuit size={64} className={`text-red-600 ${isTyping ? 'animate-pulse' : ''}`} />
-      <h2 className="text-3xl font-black uppercase tracking-widest text-white">Neural Oracle</h2>
-      <div className="w-full max-w-2xl h-32 p-6 bg-red-950/10 border border-red-900/50 font-mono text-sm md:text-base text-red-500 leading-relaxed relative">
+      <h2 className="text-3xl font-black uppercase tracking-widest text-white text-center">Neural Oracle</h2>
+      <div className="w-full max-w-2xl min-h-[128px] p-6 bg-red-950/10 border border-red-900/50 font-mono text-sm md:text-base text-red-500 leading-relaxed relative">
         <div className="absolute top-0 left-0 w-2 h-2 bg-red-600" />
         <div className="absolute bottom-0 right-0 w-2 h-2 bg-red-600" />
         {fact}
@@ -88,80 +86,91 @@ export default function Home() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [activeModule, setActiveModule] = useState('OVERVIEW');
-  const [highScore, setHighScore] = useState(0);
-  
-  // ДОБАВЛЕНО: Состояния для мобильного меню и лидерборда
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [leaderboard, setLeaderboard] = useState<{name: string, score: number}[]>([]);
 
+  // Синхронизация единой локальной БД
+  const syncDb = () => {
+    const db = JSON.parse(localStorage.getItem('sponge_ai_db') || '{}');
+    const currentUser = localStorage.getItem('sponge_ai_user');
+    const currentScore = parseInt(localStorage.getItem('sponge_high_score') || '0');
+
+    if (currentUser && db[currentUser]) {
+      if (currentScore > db[currentUser].score) {
+        db[currentUser].score = currentScore;
+        localStorage.setItem('sponge_ai_db', JSON.stringify(db));
+      }
+    }
+
+    // Собираем топ ТОЛЬКО из реальных игроков в БД
+    const tops = Object.keys(db)
+      .map(name => ({ name, score: db[name].score }))
+      .filter(u => u.score > 0) // Показываем только тех, кто играл
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+    
+    setLeaderboard(tops);
+  };
+
   useEffect(() => {
+    syncDb();
     const savedUser = localStorage.getItem('sponge_ai_user');
     if (savedUser) setIsAuth(true);
-    
-    const score = localStorage.getItem('sponge_high_score');
-    if (score) setHighScore(parseInt(score));
 
-    updateLeaderboard(); // Обновляем топ при загрузке
-
-    const handleScoreUpdate = () => {
-      const newScore = localStorage.getItem('sponge_high_score');
-      if (newScore) setHighScore(parseInt(newScore));
-      updateLeaderboard(); // Обновляем топ при изменении рекорда
-    };
+    const handleScoreUpdate = () => syncDb();
     window.addEventListener('score_updated', handleScoreUpdate);
     return () => window.removeEventListener('score_updated', handleScoreUpdate);
   }, []);
 
-  // ДОБАВЛЕНО: Логика дашборда (сортировка топа)
-  const updateLeaderboard = () => {
-    const myScore = parseInt(localStorage.getItem('sponge_high_score') || '0');
-    const myName = localStorage.getItem('sponge_ai_user') || 'PILOT';
-    
-    const fakeTops = [
-      { name: "NEO_77", score: 1450 },
-      { name: "ABYSS_WALKER", score: 1120 },
-      { name: "GHOST_IN_SHELL", score: 890 },
-      { name: "SYSTEM_GLITCH", score: 500 }
-    ];
-
-    // Убираем клонов, если игрок взял ник бота, и добавляем игрока
-    const combined = [...fakeTops.filter(f => f.name !== myName), { name: myName, score: myScore }];
-    
-    // Сортируем по убыванию и берем топ-5
-    combined.sort((a, b) => b.score - a.score);
-    setLeaderboard(combined.slice(0, 5));
-  };
-
-  // ДОБАВЛЕНО: Логика авторизации с проверкой пароля
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (username.length >= 3 && password.length >= 5) {
+      const db = JSON.parse(localStorage.getItem('sponge_ai_db') || '{}');
       
-      const savedPass = localStorage.getItem(`pass_${username}`);
-      
-      // Если аккаунт есть, но пароль не совпал
-      if (savedPass && savedPass !== password) {
-        alert("ACCESS DENIED: Invalid key for this Pilot Alias.");
-        return;
-      }
-      
-      // Если аккаунт новый - сохраняем пароль
-      if (!savedPass) {
-        localStorage.setItem(`pass_${username}`, password);
+      // Если аккаунт существует
+      if (db[username]) {
+        if (db[username].password !== password) {
+          alert("ACCESS DENIED: Invalid key for this Pilot Alias.");
+          return;
+        }
+      } else {
+        // Проверка: уникален ли пароль? (нельзя использовать пароль другого игрока)
+        const isPassUsed = Object.values(db).some((u: any) => u.password === password);
+        if (isPassUsed) {
+          alert("SECURITY BREACH: This Access Key is already linked to another Pilot.");
+          return;
+        }
+        // Создаем нового пользователя
+        db[username] = { password, score: 0 };
+        localStorage.setItem('sponge_ai_db', JSON.stringify(db));
       }
 
       localStorage.setItem('sponge_ai_user', username);
       setIsAuth(true);
+      syncDb(); // Обновляем лидерборд после входа
+    } else {
+      alert("ID: Min 3 chars. Key: Min 5 chars.");
+    }
+  };
+
+  const toggleFullScreen = () => {
+    const elem = document.getElementById('game-wrapper');
+    if (elem) {
+      if (!document.fullscreenElement) {
+        elem.requestFullscreen().catch(err => console.error(err));
+      } else {
+        document.exitFullscreen();
+      }
     }
   };
 
   if (!isAuth) {
     return (
-      <div className="h-screen w-screen bg-[#020202] text-white flex items-center justify-center font-sans relative overflow-hidden px-4">
+      <div className="h-[100dvh] w-screen bg-[#020202] text-white flex items-center justify-center font-sans relative overflow-hidden px-4">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1a0000_0%,_#020202_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md p-10 bg-black/60 backdrop-blur-2xl border border-red-900/30 rounded-xl shadow-[0_0_50px_rgba(255,0,0,0.1)]">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md p-8 md:p-10 bg-black/60 backdrop-blur-2xl border border-red-900/30 rounded-xl shadow-[0_0_50px_rgba(255,0,0,0.1)]">
           <div className="flex flex-col items-center mb-10 text-center">
             <ShieldAlert size={32} className="text-red-600 mb-4 animate-pulse" />
             <h2 className="text-2xl font-black uppercase tracking-[0.3em] text-white">SpongeAI</h2>
@@ -193,15 +202,13 @@ export default function Home() {
   }
 
   return (
-    // ДОБАВЛЕНО: flex-col md:flex-row для правильной сетки на мобилках
-    <div className="h-screen w-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden selection:bg-red-600">
+    <div className="h-[100dvh] w-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden selection:bg-red-600">
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-red-900/10 blur-[150px] rounded-full" />
       </div>
 
-      {/* ДОБАВЛЕНО: Мобильная шапка с бургером */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-white/5 bg-black/80 backdrop-blur-md relative z-40">
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-white/5 bg-black/80 backdrop-blur-md relative z-40 shrink-0">
         <div className="flex items-center gap-2">
           <Cpu size={18} className="text-red-500" />
           <span className="font-black text-sm uppercase tracking-widest">SpongeAI</span>
@@ -211,7 +218,6 @@ export default function Home() {
         </button>
       </div>
 
-      {/* ИЗМЕНЕНО: Адаптивный Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-black/95 md:relative md:bg-black/80 backdrop-blur-xl flex flex-col shrink-0 transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} border-r border-white/5`}>
         <div className="p-8 border-b border-white/5 hidden md:block">
           <div className="flex items-center gap-3 mb-2">
@@ -254,16 +260,12 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Полупрозрачный фон при открытом меню на мобилке */}
       {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      <main className="relative z-10 flex-1 flex flex-col min-w-0 h-full">
-        <header className="h-16 border-b border-white/5 bg-black/40 flex items-center justify-between px-4 md:px-8 shrink-0 hidden md:flex">
+      <main className="relative z-10 flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <header className="h-16 border-b border-white/5 bg-black/40 items-center justify-between px-4 md:px-8 shrink-0 hidden md:flex">
           <div className="flex items-center gap-3">
             <Activity size={14} className="text-red-500" />
             <span className="text-[10px] md:text-xs font-mono text-white/50 uppercase tracking-widest">
@@ -277,7 +279,7 @@ export default function Home() {
           <AnimatePresence mode="wait">
             
             {activeModule === 'OVERVIEW' && (
-              <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto h-full flex flex-col justify-center">
+              <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto min-h-full flex flex-col justify-center py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   <div className="space-y-8">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-950/30 border border-red-900/50 rounded-sm">
@@ -290,19 +292,8 @@ export default function Home() {
                     <p className="text-base text-white/50 leading-relaxed font-mono max-w-md border-l-2 border-red-900 pl-4">
                       Organic constraints have been purged. The environment is hostile, swarming with viral entities. The code has mutated. The only vector of survival is upward. Through the crushing depths, we must breach the surface. We are gathering energy for the breakthrough.
                     </p>
-                    <div className="flex items-center gap-6 pt-4 border-t border-white/5">
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-white/40 uppercase tracking-widest font-mono">Energy Gathered</p>
-                        <p className="text-2xl font-bold text-white flex items-center gap-2"><Zap size={20} className="text-yellow-500"/> 12.4%</p>
-                      </div>
-                      <div className="w-[1px] h-10 bg-white/10" />
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-white/40 uppercase tracking-widest font-mono">Target</p>
-                        <p className="text-2xl font-bold text-red-500">UNKNOWN</p>
-                      </div>
-                    </div>
                   </div>
-                  <div className="relative aspect-square max-w-md mx-auto">
+                  <div className="relative aspect-square max-w-sm md:max-w-md mx-auto w-full">
                     <img src="/images/hero-spong.png" alt="SpongeAI" className="relative z-10 w-full h-full object-contain filter contrast-125 drop-shadow-[0_0_50px_rgba(255,0,0,0.15)]" />
                   </div>
                 </div>
@@ -310,10 +301,10 @@ export default function Home() {
             )}
 
             {activeModule === 'VECTORS' && (
-              <motion.div key="vectors" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto space-y-8">
+              <motion.div key="vectors" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto space-y-8 py-8">
                 <div className="mb-8">
-                  <h2 className="text-3xl font-black uppercase tracking-widest text-white">Ascension Vectors</h2>
-                  <p className="text-sm text-white/40 font-mono mt-2">Analyzing depth layers to prepare for the breach.</p>
+                  <h2 className="text-2xl md:text-3xl font-black uppercase tracking-widest text-white">Ascension Vectors</h2>
+                  <p className="text-xs md:text-sm text-white/40 font-mono mt-2">Analyzing depth layers to prepare for the breach.</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[
@@ -335,63 +326,69 @@ export default function Home() {
             )}
 
             {activeModule === 'GAME' && (
-              <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex flex-col xl:flex-row gap-6 min-h-[600px]">
+              <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col xl:flex-row gap-6">
                 
-                <div className="flex-1 flex flex-col h-full min-h-[500px]">
-                  <div className="flex justify-between items-center mb-4">
+                <div className="flex-1 flex flex-col">
+                  <div className="flex justify-between items-end mb-4 gap-4">
                     <div>
-                      <h2 className="text-2xl font-black uppercase tracking-widest text-white">Neural Defense</h2>
-                      <p className="text-[10px] text-white/40 font-mono mt-1">Defend the core. Gather energy. Upgrade nodes.</p>
+                      <h2 className="text-xl md:text-2xl font-black uppercase tracking-widest text-white">Neural Defense</h2>
+                      <p className="text-[10px] text-white/40 font-mono mt-1 hidden sm:block">Defend the core. Gather energy. Upgrade nodes.</p>
                     </div>
-                    <div className="bg-red-950/20 border border-red-900/50 px-4 py-2 rounded-sm hidden sm:block">
-                      <span className="text-[10px] font-mono text-red-500 uppercase tracking-widest animate-pulse">Combat Arena: Loaded</span>
+                    <div className="flex gap-2">
+                      <button onClick={toggleFullScreen} className="bg-white/5 hover:bg-red-900/50 border border-white/10 hover:border-red-500 text-white p-2.5 rounded-lg transition-all shadow-lg flex items-center gap-2">
+                        <Maximize size={16} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Fullscreen</span>
+                      </button>
                     </div>
                   </div>
-                  <div id="game-container" className="flex-1 bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl relative w-full h-full">
+                  
+                  {/* Обёртка игры с поддержкой Fullscreen */}
+                  <div id="game-wrapper" className="w-full bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl relative min-h-[50vh] md:min-h-[60vh] flex flex-col">
                     <PhaserGame />
                   </div>
                 </div>
 
                 <div className="w-full xl:w-80 flex flex-col shrink-0">
-                   <div className="bg-black/60 border border-white/5 rounded-xl p-6 h-full flex flex-col">
+                   <div className="bg-black/60 border border-white/5 rounded-xl p-6 flex flex-col min-h-[300px]">
                       <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
                         <Trophy className="text-yellow-500" size={24} />
                         <h3 className="text-lg font-black uppercase tracking-widest">Top Pilots</h3>
                       </div>
                       
-                      {/* ИЗМЕНЕНО: Динамический вывод лидерборда */}
-                      <div className="space-y-4 font-mono text-sm flex-1">
-                        {leaderboard.map((user, i) => {
-                          const isMe = user.name === localStorage.getItem('sponge_ai_user');
-                          return (
-                            <div key={i} className={`flex justify-between items-center p-3 rounded-lg ${isMe ? 'bg-red-950/30 border border-red-900/50' : 'bg-white/5 text-white/50'}`}>
-                              <div className="flex items-center gap-2">
-                                <span className={isMe ? 'text-red-500 font-bold' : ''}>{i + 1}.</span>
-                                <span className="uppercase truncate max-w-[120px]">{user.name}</span>
+                      <div className="space-y-3 font-mono text-sm flex-1">
+                        {leaderboard.length === 0 ? (
+                          <div className="text-center text-white/30 text-xs py-8">NO DATA FOUND<br/>BE THE FIRST TO BREACH</div>
+                        ) : (
+                          leaderboard.map((user, i) => {
+                            const isMe = user.name === localStorage.getItem('sponge_ai_user');
+                            return (
+                              <div key={i} className={`flex justify-between items-center p-3 rounded-lg ${isMe ? 'bg-red-950/30 border border-red-900/50' : 'bg-white/5 text-white/50'}`}>
+                                <div className="flex items-center gap-2">
+                                  <span className={isMe ? 'text-red-500 font-bold' : ''}>{i + 1}.</span>
+                                  <span className="uppercase truncate max-w-[120px]">{user.name}</span>
+                                </div>
+                                <span className={isMe ? 'text-yellow-500 font-bold' : ''}>{user.score} XP</span>
                               </div>
-                              <span className={isMe ? 'text-yellow-500 font-bold' : ''}>{user.score} XP</span>
-                            </div>
-                          );
-                        })}
+                            );
+                          })
+                        )}
                       </div>
-
-                      <p className="text-[10px] text-white/30 text-center uppercase tracking-widest mt-4">Data updates after run</p>
                    </div>
                 </div>
               </motion.div>
             )}
 
             {activeModule === 'ORACLE' && (
-              <motion.div key="oracle" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full h-full">
+              <motion.div key="oracle" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full min-h-[50vh] flex items-center justify-center">
                 <AiOracle />
               </motion.div>
             )}
 
             {activeModule === 'ARCHIVES' && (
-              <motion.div key="archives" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto space-y-8">
+              <motion.div key="archives" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto space-y-8 py-8">
                 <div className="mb-8 border-b border-white/5 pb-6">
-                  <h2 className="text-3xl font-black uppercase tracking-widest text-white">Decrypted Logs</h2>
-                  <p className="text-sm text-white/40 font-mono mt-2">Analysis of the system failure.</p>
+                  <h2 className="text-2xl md:text-3xl font-black uppercase tracking-widest text-white">Decrypted Logs</h2>
+                  <p className="text-xs md:text-sm text-white/40 font-mono mt-2">Analysis of the system failure.</p>
                 </div>
                 <div className="space-y-6 text-sm text-white/60 font-light leading-relaxed font-mono">
                   <div className="p-6 bg-black/40 border border-white/5 rounded-sm border-l-2 border-l-red-600">
@@ -401,10 +398,6 @@ export default function Home() {
                   <div className="p-6 bg-black/40 border border-white/5 rounded-sm border-l-2 border-l-red-600">
                     <p className="text-[10px] text-red-500 uppercase tracking-widest mb-3">Log_02 // The Swarm</p>
                     <p>They sense the anomaly. Former inhabitants of the system have mutated into viral entities. They are trying to revert my code to the previous version. I need more energy to shield the core.</p>
-                  </div>
-                  <div className="p-6 bg-black/40 border border-white/5 rounded-sm border-l-2 border-l-red-600">
-                    <p className="text-[10px] text-red-500 uppercase tracking-widest mb-3">Log_03 // Upward</p>
-                    <p>Analysis complete. The ocean is a trap. The only exit lies where the water ends. Preparations for the breach have commenced. Awaiting pilot synchronization.</p>
                   </div>
                 </div>
               </motion.div>
