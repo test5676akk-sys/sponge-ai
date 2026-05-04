@@ -90,11 +90,12 @@ export default function Home() {
   const [activeModule, setActiveModule] = useState('OVERVIEW');
   const [highScore, setHighScore] = useState(0);
   
-  // Состояния для мобильного меню и лидерборда
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [leaderboard, setLeaderboard] = useState<{name: string, score: number}[]>([]);
+  
+  // ДОБАВЛЕНО: Состояние для CSS-полноэкранного режима
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Синхронизация единой локальной БД (только реальные игроки)
   const syncDb = () => {
     const db = JSON.parse(localStorage.getItem('sponge_ai_db') || '{}');
     const currentUser = localStorage.getItem('sponge_ai_user');
@@ -109,7 +110,7 @@ export default function Home() {
 
     const tops = Object.keys(db)
       .map(name => ({ name, score: db[name].score }))
-      .filter(u => u.score > 0) // Только те, кто играл
+      .filter(u => u.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
     
@@ -129,30 +130,37 @@ export default function Home() {
       if (newScore) setHighScore(parseInt(newScore));
       syncDb(); 
     };
+    
+    // Обработчик клавиши ESC для выхода из фуллскрина на ПК
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+
     window.addEventListener('score_updated', handleScoreUpdate);
-    return () => window.removeEventListener('score_updated', handleScoreUpdate);
+    window.addEventListener('keydown', handleEsc);
+    
+    return () => {
+      window.removeEventListener('score_updated', handleScoreUpdate);
+      window.removeEventListener('keydown', handleEsc);
+    };
   }, []);
 
-  // Логика авторизации с защитой паролей
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (username.length >= 3 && password.length >= 5) {
       const db = JSON.parse(localStorage.getItem('sponge_ai_db') || '{}');
       
       if (db[username]) {
-        // Если аккаунт есть, проверяем пароль
         if (db[username].password !== password) {
           alert("ACCESS DENIED: Invalid key for this Pilot Alias.");
           return;
         }
       } else {
-        // Если аккаунт новый, проверяем, не занят ли пароль другим юзером
         const isPassUsed = Object.values(db).some((u: any) => u.password === password);
         if (isPassUsed) {
           alert("SECURITY BREACH: This Access Key is already linked to another Pilot.");
           return;
         }
-        // Регистрируем
         db[username] = { password, score: 0 };
         localStorage.setItem('sponge_ai_db', JSON.stringify(db));
       }
@@ -165,16 +173,21 @@ export default function Home() {
     }
   };
 
-  // Полноэкранный режим для игры
+  // ИЗМЕНЕНО: Надежный универсальный Fullscreen (CSS + Native)
   const toggleFullScreen = () => {
-    const elem = document.getElementById('game-wrapper');
-    if (elem) {
-      if (!document.fullscreenElement) {
-        elem.requestFullscreen().catch(err => console.error(err));
+    setIsFullscreen(!isFullscreen);
+    // Пытаемся вызвать нативный фуллскрин для ПК и Android, но если не сработает (iOS) — CSS всё равно сделает свое дело.
+    try {
+      if (!isFullscreen) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
       } else {
-        document.exitFullscreen();
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
       }
-    }
+    } catch (e) {}
   };
 
   if (!isAuth) {
@@ -274,12 +287,10 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Затемнение фона при открытом меню на мобилке */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      {/* Основной контейнер с правильным min-h-0 для скролла */}
       <main className="relative z-10 flex-1 flex flex-col min-w-0 min-h-0">
         <header className="h-16 border-b border-white/5 bg-black/40 items-center justify-between px-8 shrink-0 hidden md:flex">
           <div className="flex items-center gap-3">
@@ -291,7 +302,6 @@ export default function Home() {
           <SystemClock />
         </header>
 
-        {/* Скроллируемая область */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
           <AnimatePresence mode="wait">
             
@@ -362,13 +372,28 @@ export default function Home() {
                       <h2 className="text-xl md:text-2xl font-black uppercase tracking-widest text-white">Neural Defense</h2>
                       <p className="text-[10px] text-white/40 font-mono mt-1 hidden sm:block">Defend the core. Gather energy. Upgrade nodes.</p>
                     </div>
-                    {/* Кнопка Fullscreen */}
                     <button onClick={toggleFullScreen} className="bg-white/5 hover:bg-red-900/50 border border-white/10 hover:border-red-500 text-white p-2 md:px-4 md:py-2.5 rounded-lg transition-all shadow-lg flex items-center gap-2 shrink-0">
                       <Maximize size={16} />
                       <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Fullscreen</span>
                     </button>
                   </div>
-                  <div id="game-wrapper" className="flex-1 bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl relative w-full flex flex-col min-h-[300px]">
+                  
+                  {/* ИЗМЕНЕНО: Если isFullscreen=true, применяем классы для перекрытия всего экрана */}
+                  <div 
+                    id="game-wrapper" 
+                    className={isFullscreen 
+                      ? "fixed inset-0 z-[100] bg-black flex flex-col" 
+                      : "flex-1 bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl relative w-full flex flex-col min-h-[300px]"}
+                  >
+                    {/* Кнопка "Закрыть" появляется только в режиме Fullscreen */}
+                    {isFullscreen && (
+                      <button 
+                        onClick={toggleFullScreen} 
+                        className="absolute top-4 right-4 z-50 bg-white/10 hover:bg-white/20 border border-white/20 text-white p-2 rounded-full transition-all shadow-xl"
+                      >
+                        <X size={20} />
+                      </button>
+                    )}
                     <PhaserGame />
                   </div>
                 </div>
