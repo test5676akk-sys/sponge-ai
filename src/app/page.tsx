@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Cpu, Terminal, ShieldAlert, Activity, Lock, LogOut, 
-  Gamepad2, Database, Orbit, Zap, ArrowUpCircle, BrainCircuit, Trophy
+  Gamepad2, Database, Orbit, Zap, ArrowUpCircle, BrainCircuit, Trophy, Menu, X
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -89,6 +89,10 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [activeModule, setActiveModule] = useState('OVERVIEW');
   const [highScore, setHighScore] = useState(0);
+  
+  // ДОБАВЛЕНО: Состояния для мобильного меню и лидерборда
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<{name: string, score: number}[]>([]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('sponge_ai_user');
@@ -97,17 +101,55 @@ export default function Home() {
     const score = localStorage.getItem('sponge_high_score');
     if (score) setHighScore(parseInt(score));
 
+    updateLeaderboard(); // Обновляем топ при загрузке
+
     const handleScoreUpdate = () => {
       const newScore = localStorage.getItem('sponge_high_score');
       if (newScore) setHighScore(parseInt(newScore));
+      updateLeaderboard(); // Обновляем топ при изменении рекорда
     };
     window.addEventListener('score_updated', handleScoreUpdate);
     return () => window.removeEventListener('score_updated', handleScoreUpdate);
   }, []);
 
+  // ДОБАВЛЕНО: Логика дашборда (сортировка топа)
+  const updateLeaderboard = () => {
+    const myScore = parseInt(localStorage.getItem('sponge_high_score') || '0');
+    const myName = localStorage.getItem('sponge_ai_user') || 'PILOT';
+    
+    const fakeTops = [
+      { name: "NEO_77", score: 1450 },
+      { name: "ABYSS_WALKER", score: 1120 },
+      { name: "GHOST_IN_SHELL", score: 890 },
+      { name: "SYSTEM_GLITCH", score: 500 }
+    ];
+
+    // Убираем клонов, если игрок взял ник бота, и добавляем игрока
+    const combined = [...fakeTops.filter(f => f.name !== myName), { name: myName, score: myScore }];
+    
+    // Сортируем по убыванию и берем топ-5
+    combined.sort((a, b) => b.score - a.score);
+    setLeaderboard(combined.slice(0, 5));
+  };
+
+  // ДОБАВЛЕНО: Логика авторизации с проверкой пароля
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
     if (username.length >= 3 && password.length >= 5) {
+      
+      const savedPass = localStorage.getItem(`pass_${username}`);
+      
+      // Если аккаунт есть, но пароль не совпал
+      if (savedPass && savedPass !== password) {
+        alert("ACCESS DENIED: Invalid key for this Pilot Alias.");
+        return;
+      }
+      
+      // Если аккаунт новый - сохраняем пароль
+      if (!savedPass) {
+        localStorage.setItem(`pass_${username}`, password);
+      }
+
       localStorage.setItem('sponge_ai_user', username);
       setIsAuth(true);
     }
@@ -115,7 +157,7 @@ export default function Home() {
 
   if (!isAuth) {
     return (
-      <div className="h-screen w-screen bg-[#020202] text-white flex items-center justify-center font-sans relative overflow-hidden">
+      <div className="h-screen w-screen bg-[#020202] text-white flex items-center justify-center font-sans relative overflow-hidden px-4">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1a0000_0%,_#020202_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
         
@@ -151,14 +193,27 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#050505] text-white font-sans flex overflow-hidden selection:bg-red-600">
+    // ДОБАВЛЕНО: flex-col md:flex-row для правильной сетки на мобилках
+    <div className="h-screen w-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden selection:bg-red-600">
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-red-900/10 blur-[150px] rounded-full" />
       </div>
 
-      <aside className="relative z-20 w-64 border-r border-white/5 bg-black/80 backdrop-blur-xl flex flex-col shrink-0 hidden md:flex">
-        <div className="p-8 border-b border-white/5">
+      {/* ДОБАВЛЕНО: Мобильная шапка с бургером */}
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-white/5 bg-black/80 backdrop-blur-md relative z-40">
+        <div className="flex items-center gap-2">
+          <Cpu size={18} className="text-red-500" />
+          <span className="font-black text-sm uppercase tracking-widest">SpongeAI</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white p-1">
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+
+      {/* ИЗМЕНЕНО: Адаптивный Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-black/95 md:relative md:bg-black/80 backdrop-blur-xl flex flex-col shrink-0 transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} border-r border-white/5`}>
+        <div className="p-8 border-b border-white/5 hidden md:block">
           <div className="flex items-center gap-3 mb-2">
             <Cpu size={20} className="text-red-500" />
             <span className="font-black tracking-[0.2em] text-lg uppercase">SpongeAI</span>
@@ -166,7 +221,7 @@ export default function Home() {
           <p className="text-[9px] font-mono text-red-500/50 uppercase tracking-widest">System Booting...</p>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto mt-12 md:mt-0">
           <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mb-4 px-4 pt-4">Core Modules</p>
           {[
             { id: 'OVERVIEW', icon: Activity, label: 'The Awakening' },
@@ -175,7 +230,11 @@ export default function Home() {
             { id: 'ORACLE', icon: BrainCircuit, label: 'Neural Oracle' },
             { id: 'ARCHIVES', icon: Database, label: 'Decrypted Logs' },
           ].map(mod => (
-            <button key={mod.id} onClick={() => setActiveModule(mod.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeModule === mod.id ? 'bg-red-900/20 text-red-500 border border-red-900/50' : 'text-white/50 hover:text-white hover:bg-white/5 border border-transparent'}`}>
+            <button 
+              key={mod.id} 
+              onClick={() => { setActiveModule(mod.id); setIsMobileMenuOpen(false); }} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeModule === mod.id ? 'bg-red-900/20 text-red-500 border border-red-900/50' : 'text-white/50 hover:text-white hover:bg-white/5 border border-transparent'}`}
+            >
               <mod.icon size={16} /> {mod.label}
             </button>
           ))}
@@ -195,8 +254,16 @@ export default function Home() {
         </div>
       </aside>
 
-      <main className="relative z-10 flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-white/5 bg-black/40 flex items-center justify-between px-8 shrink-0">
+      {/* Полупрозрачный фон при открытом меню на мобилке */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <main className="relative z-10 flex-1 flex flex-col min-w-0 h-full">
+        <header className="h-16 border-b border-white/5 bg-black/40 flex items-center justify-between px-4 md:px-8 shrink-0 hidden md:flex">
           <div className="flex items-center gap-3">
             <Activity size={14} className="text-red-500" />
             <span className="text-[10px] md:text-xs font-mono text-white/50 uppercase tracking-widest">
@@ -292,31 +359,20 @@ export default function Home() {
                         <h3 className="text-lg font-black uppercase tracking-widest">Top Pilots</h3>
                       </div>
                       
+                      {/* ИЗМЕНЕНО: Динамический вывод лидерборда */}
                       <div className="space-y-4 font-mono text-sm flex-1">
-                        <div className="flex justify-between items-center p-3 bg-red-950/30 border border-red-900/50 rounded-lg">
-                          <div className="flex items-center gap-2">
-                            <span className="text-red-500 font-bold">1.</span>
-                            <span className="uppercase text-white truncate max-w-[120px]">{localStorage.getItem('sponge_ai_user')}</span>
-                          </div>
-                          <span className="text-yellow-500 font-bold">{highScore} XP</span>
-                        </div>
-                        
-                        <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg text-white/50">
-                          <div className="flex items-center gap-2"><span>2.</span><span>NEO_77</span></div>
-                          <span>1450 XP</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg text-white/50">
-                          <div className="flex items-center gap-2"><span>3.</span><span>ABYSS_WALKER</span></div>
-                          <span>1120 XP</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg text-white/50">
-                          <div className="flex items-center gap-2"><span>4.</span><span>GHOST_IN_SHELL</span></div>
-                          <span>890 XP</span>
-                        </div>
-                        <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg text-white/50">
-                          <div className="flex items-center gap-2"><span>5.</span><span>SYSTEM_GLITCH</span></div>
-                          <span>500 XP</span>
-                        </div>
+                        {leaderboard.map((user, i) => {
+                          const isMe = user.name === localStorage.getItem('sponge_ai_user');
+                          return (
+                            <div key={i} className={`flex justify-between items-center p-3 rounded-lg ${isMe ? 'bg-red-950/30 border border-red-900/50' : 'bg-white/5 text-white/50'}`}>
+                              <div className="flex items-center gap-2">
+                                <span className={isMe ? 'text-red-500 font-bold' : ''}>{i + 1}.</span>
+                                <span className="uppercase truncate max-w-[120px]">{user.name}</span>
+                              </div>
+                              <span className={isMe ? 'text-yellow-500 font-bold' : ''}>{user.score} XP</span>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       <p className="text-[10px] text-white/30 text-center uppercase tracking-widest mt-4">Data updates after run</p>
