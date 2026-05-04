@@ -65,8 +65,8 @@ const AiOracle = () => {
   return (
     <div className="flex flex-col items-center justify-center h-full space-y-8">
       <BrainCircuit size={64} className={`text-red-600 ${isTyping ? 'animate-pulse' : ''}`} />
-      <h2 className="text-3xl font-black uppercase tracking-widest text-white">Neural Oracle</h2>
-      <div className="w-full max-w-2xl h-32 p-6 bg-red-950/10 border border-red-900/50 font-mono text-sm md:text-base text-red-500 leading-relaxed relative">
+      <h2 className="text-3xl font-black uppercase tracking-widest text-white text-center">Neural Oracle</h2>
+      <div className="w-full max-w-2xl min-h-[128px] p-6 bg-red-950/10 border border-red-900/50 font-mono text-sm md:text-base text-red-500 leading-relaxed relative">
         <div className="absolute top-0 left-0 w-2 h-2 bg-red-600" />
         <div className="absolute bottom-0 right-0 w-2 h-2 bg-red-600" />
         {fact}
@@ -179,11 +179,11 @@ export default function Home() {
 
   if (!isAuth) {
     return (
-      <div className="h-[100dvh] w-screen bg-[#020202] text-white flex items-center justify-center font-sans relative overflow-hidden">
+      <div className="h-[100dvh] w-full bg-[#020202] text-white flex items-center justify-center font-sans relative overflow-hidden px-4">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1a0000_0%,_#020202_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
         
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md p-10 bg-black/60 backdrop-blur-2xl border border-red-900/30 rounded-xl shadow-[0_0_50px_rgba(255,0,0,0.1)] mx-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative z-10 w-full max-w-md p-8 md:p-10 bg-black/60 backdrop-blur-2xl border border-red-900/30 rounded-xl shadow-[0_0_50px_rgba(255,0,0,0.1)]">
           <div className="flex flex-col items-center mb-10 text-center">
             <ShieldAlert size={32} className="text-red-600 mb-4 animate-pulse" />
             <h2 className="text-2xl font-black uppercase tracking-[0.3em] text-white">SpongeAI</h2>
@@ -215,7 +215,7 @@ export default function Home() {
   }
 
   return (
-    <div className="h-[100dvh] w-screen bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden selection:bg-red-600">
+    <div className="h-[100dvh] w-full bg-[#050505] text-white font-sans flex flex-col md:flex-row overflow-hidden selection:bg-red-600">
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,0,0,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-red-900/10 blur-[150px] rounded-full" />
@@ -260,7 +260,7 @@ export default function Home() {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-white/5 bg-white/[0.02]">
+        <div className="p-6 border-t border-white/5 bg-white/[0.02] shrink-0">
           <p className="text-[9px] font-mono text-white/40 uppercase tracking-widest mb-3">Pilot Linked</p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -279,7 +279,8 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      <main className="relative z-10 flex-1 flex flex-col min-w-0">
+      {/* Основной контейнер с правильным min-h-0 для скролла */}
+      <main className="relative z-10 flex-1 flex flex-col min-w-0 min-h-0">
         <header className="h-16 border-b border-white/5 bg-black/40 items-center justify-between px-8 shrink-0 hidden md:flex">
           <div className="flex items-center gap-3">
             <Activity size={14} className="text-red-500" />
@@ -290,11 +291,12 @@ export default function Home() {
           <SystemClock />
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+        {/* Скроллируемая область */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8">
           <AnimatePresence mode="wait">
             
             {activeModule === 'OVERVIEW' && (
-              <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto h-full flex flex-col justify-center">
+              <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto min-h-full flex flex-col justify-center py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                   <div className="space-y-8">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-950/30 border border-red-900/50 rounded-sm">
@@ -327,7 +329,7 @@ export default function Home() {
             )}
 
             {activeModule === 'VECTORS' && (
-              <motion.div key="vectors" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto space-y-8">
+              <motion.div key="vectors" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="max-w-6xl mx-auto space-y-8 py-4">
                 <div className="mb-8">
                   <h2 className="text-3xl font-black uppercase tracking-widest text-white">Ascension Vectors</h2>
                   <p className="text-sm text-white/40 font-mono mt-2">Analyzing depth layers to prepare for the breach.</p>
@@ -352,7 +354,7 @@ export default function Home() {
             )}
 
             {activeModule === 'GAME' && (
-              <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col xl:flex-row gap-6">
+              <motion.div key="game" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col xl:flex-row gap-6 pb-8">
                 
                 <div className="flex-1 flex flex-col min-h-[50vh]">
                   <div className="flex justify-between items-end mb-4 gap-4">
@@ -404,13 +406,13 @@ export default function Home() {
             )}
 
             {activeModule === 'ORACLE' && (
-              <motion.div key="oracle" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full h-full">
+              <motion.div key="oracle" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full min-h-full flex items-center justify-center py-8">
                 <AiOracle />
               </motion.div>
             )}
 
             {activeModule === 'ARCHIVES' && (
-              <motion.div key="archives" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto space-y-8">
+              <motion.div key="archives" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto space-y-8 pb-8">
                 <div className="mb-8 border-b border-white/5 pb-6">
                   <h2 className="text-3xl font-black uppercase tracking-widest text-white">Decrypted Logs</h2>
                   <p className="text-sm text-white/40 font-mono mt-2">Analysis of the system failure.</p>
